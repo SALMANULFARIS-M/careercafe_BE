@@ -4,6 +4,12 @@ const bodyParser = require("express").json;
 const axios = require("axios");
 const nodemailer = require("nodemailer");
 require("dotenv").config(); // Load environment variables from .env file
+const cors = require('cors');
+app.use(cors());
+const corsOptions = {
+  origin: ['http://localhost:4200','https://careercafe.co'],
+};
+app.use(cors(corsOptions));
 
 const app = express();
 const PORT = process.env.PORT || 5000;
