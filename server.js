@@ -33,13 +33,10 @@ const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
 const whatsappApiUrl = `https://graph.facebook.com/v15.0/${phoneNumberID}/messages`;
 
 // Define the recipient's WhatsApp phone number (should include country code, e.g., +1 for US)
-const recipientNumber = process.env.RECIPIENT_PHONE_NUMBER;
-
 app.post("/appointment", async (req, res) => {
   const formData = req.body;
   console.log("Received Appointment Data:", formData);
 
-  // Prepare the message body
   const messageBody = `📅 New Appointment Request:\n\n
     🔹 Name: ${formData.name}\n
     📞 Phone: ${formData.phone}\n
@@ -53,7 +50,6 @@ app.post("/appointment", async (req, res) => {
     Dear ${formData.name}, your appointment has been successfully booked.\n
     Thank you for choosing us!`;
 
-  // Construct the message payload
   const messageData = {
     messaging_product: "whatsapp",
     to: recipientNumber,
@@ -61,41 +57,35 @@ app.post("/appointment", async (req, res) => {
   };
   const userMessageData = {
     messaging_product: "whatsapp",
-    to: "whatsapp:+91" + formData.phone, // Correct format for WhatsApp API
+    to: `whatsapp:+91${formData.phone}`,
     text: { body: userMessageBody },
   };
+
   try {
-    const response = await axios.post(whatsappApiUrl, messageData, {
+    await axios.post(whatsappApiUrl, messageData, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
     });
+
     try {
-      // Try sending the confirmation message to the user
-      await axios
-        .post(whatsappApiUrl, userMessageData, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-        })
-        .then((res) => console.log("api urra", res.data))
-        .catch((err) => console.log("ereera", err));
+      await axios.post(whatsappApiUrl, userMessageData, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      });
     } catch (userError) {
       console.error("Failed to send WhatsApp message to user:", userError);
-      // We don't return an error here since the business message is already sent
     }
 
-    // Respond to the client
     res.json({
       success: true,
       message: "Appointment booked & WhatsApp message sent!",
     });
   } catch (error) {
-    console.log("errer :dsf", error);
-
-    // Respond with an error
+    console.error("Error sending WhatsApp message:", error);
     res.status(500).json({
       success: false,
       message: "Failed to send WhatsApp message",
@@ -123,9 +113,9 @@ app.post("/patnerRegister", async (req, res) => {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: "ceo@careercafe.co", // Your company email
-      subject: "New Appointment Received",
+      subject: "New Appointment Received ",
       html: `
-        <h3>New Appointment Request</h3>
+        <h3>New Appointment Request For Partnership</h3>
         <ul>
           <li><strong>Name:</strong> ${name}</li>
           <li><strong>Email:</strong> ${email}</li>
@@ -163,7 +153,7 @@ app.post("/contact", async (req, res) => {
           <ul>
             <li><strong>Name:</strong> ${name}</li>
             <li><strong>Email:</strong> ${email}</li>
-            <li><strong>Mobile:</strong> ${message}</li>
+            <li><strong>Message:</strong> ${message}</li>
           </ul>
         `,
     });
