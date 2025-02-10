@@ -1,12 +1,12 @@
 const express = require("express");
-const cors = require("cors");
+const cors = require("cors"); 
 const bodyParser = require("express").json;
 const axios = require("axios");
 const app = express();
 const nodemailer = require("nodemailer");
-require("dotenv").config();
+require("dotenv").config(); 
 const corsOptions = {
-  origin: ["https://careercafe.co"],
+  origin: ["https://careercafe.co"], 
   methods: ["GET", "POST", "PUT", "DELETE"],
   credentials: true,
 };
@@ -35,7 +35,7 @@ const whatsappApiUrl = `https://graph.facebook.com/v15.0/${phoneNumberID}/messag
 // Define the recipient's WhatsApp phone number (should include country code, e.g., +1 for US)
 const recipientNumber = process.env.RECIPIENT_PHONE_NUMBER;
 
-app.post("/api/appointment", async (req, res) => {
+app.post("/appointment", async (req, res) => {
   const formData = req.body;
   console.log("Received Appointment Data:", formData);
 
@@ -103,7 +103,7 @@ app.post("/api/appointment", async (req, res) => {
   }
 });
 
-app.post("/api/patnerRegister", async (req, res) => {
+app.post("/patnerRegister", async (req, res) => {
   const { name, email, mobile, state, city } = req.body;
   try {
     // **Email to the User (Confirmation Email)**
@@ -150,7 +150,7 @@ app.post("/api/patnerRegister", async (req, res) => {
   }
 });
 
-app.post("/api/contact", async (req, res) => {
+app.post("/contact", async (req, res) => {
   const { name, email, message } = req.body;
   try {
     // **Email to the Company (Notification Email)**
