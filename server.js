@@ -1,17 +1,17 @@
 const express = require("express");
-const cors = require("cors"); // Allow frontend requests
+const cors = require("cors");
 const bodyParser = require("express").json;
 const axios = require("axios");
+const app = express();
 const nodemailer = require("nodemailer");
-require("dotenv").config(); // Load environment variables from .env file
-const cors = require('cors');
-app.use(cors());
+require("dotenv").config();
 const corsOptions = {
-  origin: ['http://localhost:4200','https://careercafe.co'],
+  origin: ["https://careercafe.co"],
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true,
 };
 app.use(cors(corsOptions));
 
-const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors()); // Enable CORS
@@ -73,12 +73,15 @@ app.post("/api/appointment", async (req, res) => {
     });
     try {
       // Try sending the confirmation message to the user
-      await axios.post(whatsappApiUrl, userMessageData, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-      }).then((res)=> console.log("api urra",res.data)).catch((err)=>console.log("ereera",err));
+      await axios
+        .post(whatsappApiUrl, userMessageData, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        })
+        .then((res) => console.log("api urra", res.data))
+        .catch((err) => console.log("ereera", err));
     } catch (userError) {
       console.error("Failed to send WhatsApp message to user:", userError);
       // We don't return an error here since the business message is already sent
@@ -90,8 +93,8 @@ app.post("/api/appointment", async (req, res) => {
       message: "Appointment booked & WhatsApp message sent!",
     });
   } catch (error) {
-    console.log("errer :dsf",error);
-    
+    console.log("errer :dsf", error);
+
     // Respond with an error
     res.status(500).json({
       success: false,
