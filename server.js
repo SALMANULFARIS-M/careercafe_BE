@@ -1,11 +1,16 @@
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("express").json;
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+} = require("@whiskeysockets/baileys");
+const qrcode = require("qrcode-terminal");
 const app = express();
 const nodemailer = require("nodemailer");
 require("dotenv").config();
 const corsOptions = {
-  origin: ["https://careercafe.co"],
+  origin: ["https://careercafe.co", "http://localhost:4200"],
   methods: ["GET", "POST", "PUT", "DELETE"],
   credentials: true,
 };
@@ -28,28 +33,54 @@ const transporter = nodemailer.createTransport({
 
 // Define the recipient's WhatsApp phone number (should include country code, e.g., +1 for US)
 const OWNER_NUMBER = process.env.OWNER_NUMBER + "@s.whatsapp.net"; // Convert to WhatsApp format
-
 let sock;
 
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState("baileys_auth"); // Save session
+
   sock = makeWASocket({
     auth: state,
-    printQRInTerminal: true, // Show QR code in terminal
+    printQRInTerminal: false, // Disable automatic QR in terminal
   });
 
-  sock.ev.on("creds.update", saveCreds);
+  sock.ev.on("creds.update", saveCreds); // Save credentials when they are updated
 
   sock.ev.on("connection.update", (update) => {
-    if (update.qr) {
-      console.log("📲 Scan the QR code in the terminal using WhatsApp Web.");
+    const { qr, connection, lastDisconnect } = update;
+
+    if (qr) {
+      qrcode.generate(qr, { small: true }); // Display QR code in terminal when needed
+    }
+
+    if (connection === "close") {
+      const isLoggedOut = lastDisconnect?.error?.output?.statusCode === 401;
+
+      if (isLoggedOut) {
+        console.log("🔴 Logged out. Scan QR again.");
+      } else {
+        console.log(
+          "❌ Connection closed unexpectedly. Waiting for reconnect..."
+        );
+        setTimeout(() => startBot(), 5000); // Retry after 5 seconds (preventing rapid reconnections)
+      }
+    } else if (connection === "open") {
+      console.log("✅ WhatsApp Connected!");
     }
   });
 }
+// Only start the bot once and don't restart unnecessarily
+startBot();
 
 app.post("/appointment", async (req, res) => {
+  console.log("sock :", sock);
+
+  if (!sock) {
+    console.log("WhatsApp bot is not connected");
+    return res
+      .status(500)
+      .json({ success: false, message: "WhatsApp bot is not connected" });
+  }
   const formData = req.body;
-  console.log("📩 Received Appointment Data:", formData);
 
   const messageBody = `📅 New Appointment Request:\n
     🔹 Name: ${formData.name}\n
