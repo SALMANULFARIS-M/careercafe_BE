@@ -88,12 +88,11 @@ app.post("/appointment", async (req, res) => {
     📍 Place: ${formData.place}\n
     📅 Date: ${formData.date}\n
     ⏰ Time: ${formData.time}`;
+  const USER_NUMBER = "91" + formData.phone + "@s.whatsapp.net";
 
   const userMessageBody = `✅ Appointment Confirmed!\n
     Dear ${formData.name}, your appointment has been successfully booked.\n
     Thank you for choosing us!`;
-
-  const USER_NUMBER = "91" + formData.phone + "@s.whatsapp.net";
   // Check if owner is the same as the user
   try {
     // Send message to owner
