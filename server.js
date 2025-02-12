@@ -1,12 +1,11 @@
 const express = require("express");
-const cors = require("cors"); 
+const cors = require("cors");
 const bodyParser = require("express").json;
-const axios = require("axios");
 const app = express();
 const nodemailer = require("nodemailer");
-require("dotenv").config(); 
+require("dotenv").config();
 const corsOptions = {
-  origin: ["https://careercafe.co"], 
+  origin: ["https://careercafe.co"],
   methods: ["GET", "POST", "PUT", "DELETE"],
   credentials: true,
 };
@@ -27,17 +26,32 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Define the WhatsApp API credentials and endpoint
-const phoneNumberID = process.env.WHATSAPP_PHONE_NUMBER_ID;
-const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-const whatsappApiUrl = `https://graph.facebook.com/v15.0/${phoneNumberID}/messages`;
-
 // Define the recipient's WhatsApp phone number (should include country code, e.g., +1 for US)
+const OWNER_NUMBER = process.env.OWNER_NUMBER + "@s.whatsapp.net"; // Convert to WhatsApp format
+
+let sock;
+
+async function startBot() {
+  const { state, saveCreds } = await useMultiFileAuthState("baileys_auth"); // Save session
+  sock = makeWASocket({
+    auth: state,
+    printQRInTerminal: true, // Show QR code in terminal
+  });
+
+  sock.ev.on("creds.update", saveCreds);
+
+  sock.ev.on("connection.update", (update) => {
+    if (update.qr) {
+      console.log("📲 Scan the QR code in the terminal using WhatsApp Web.");
+    }
+  });
+}
+
 app.post("/appointment", async (req, res) => {
   const formData = req.body;
-  console.log("Received Appointment Data:", formData);
+  console.log("📩 Received Appointment Data:", formData);
 
-  const messageBody = `📅 New Appointment Request:\n\n
+  const messageBody = `📅 New Appointment Request:\n
     🔹 Name: ${formData.name}\n
     📞 Phone: ${formData.phone}\n
     📧 Email: ${formData.email}\n
@@ -46,50 +60,28 @@ app.post("/appointment", async (req, res) => {
     📅 Date: ${formData.date}\n
     ⏰ Time: ${formData.time}`;
 
-  const userMessageBody = `✅ Appointment Confirmed!\n\n
+  const userMessageBody = `✅ Appointment Confirmed!\n
     Dear ${formData.name}, your appointment has been successfully booked.\n
     Thank you for choosing us!`;
 
-  const messageData = {
-    messaging_product: "whatsapp",
-    to: recipientNumber,
-    text: { body: messageBody },
-  };
-  const userMessageData = {
-    messaging_product: "whatsapp",
-    to: `whatsapp:+91${formData.phone}`,
-    text: { body: userMessageBody },
-  };
-
   try {
-    await axios.post(whatsappApiUrl, messageData, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    });
+    // Send message to owner
+    await sock.sendMessage(OWNER_NUMBER, { text: messageBody });
 
-    try {
-      await axios.post(whatsappApiUrl, userMessageData, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-      });
-    } catch (userError) {
-      console.error("Failed to send WhatsApp message to user:", userError);
-    }
+    // Send confirmation to user
+    await sock.sendMessage(`${formData.phone}@s.whatsapp.net`, {
+      text: userMessageBody,
+    });
 
     res.json({
       success: true,
       message: "Appointment booked & WhatsApp message sent!",
     });
   } catch (error) {
-    console.error("Error sending WhatsApp message:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to send WhatsApp message",
-    });
+    console.error("❌ Error sending WhatsApp message:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to send WhatsApp message" });
   }
 });
 
