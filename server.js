@@ -72,8 +72,6 @@ async function startBot() {
 startBot();
 
 app.post("/appointment", async (req, res) => {
-  console.log("sock :", sock);
-
   if (!sock) {
     console.log("WhatsApp bot is not connected");
     return res
@@ -95,18 +93,18 @@ app.post("/appointment", async (req, res) => {
     Dear ${formData.name}, your appointment has been successfully booked.\n
     Thank you for choosing us!`;
 
+  const USER_NUMBER = "91" + formData.phone + "@s.whatsapp.net";
+  // Check if owner is the same as the user
   try {
     // Send message to owner
     await sock.sendMessage(OWNER_NUMBER, { text: messageBody });
-
-    // Send confirmation to user
-    await sock.sendMessage(`${formData.phone}@s.whatsapp.net`, {
-      text: userMessageBody,
-    });
+    if (USER_NUMBER !== OWNER_NUMBER) {
+      await sock.sendMessage(USER_NUMBER, { text: userMessageBody });
+    }
 
     res.json({
       success: true,
-      message: "Appointment booked & WhatsApp message sent!",
+      message: "Appointment booked!",
     });
   } catch (error) {
     console.error("❌ Error sending WhatsApp message:", error);
