@@ -113,6 +113,8 @@ app.post("/appointment", async (req, res) => {
   }
 });
 
+
+
 app.post("/patnerRegister", async (req, res) => {
   const { name, email, mobile, state, city } = req.body;
   try {
@@ -132,7 +134,7 @@ app.post("/patnerRegister", async (req, res) => {
     // **Email to the Company (Notification Email)**
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
-      to: "ceo@careercafe.co", // Your company email
+      to: "info@careercafe.co", // Your company email
       subject: "New Appointment Received ",
       html: `
         <h3>New Appointment Request For Partnership</h3>
@@ -146,10 +148,10 @@ app.post("/patnerRegister", async (req, res) => {
       `,
     });
 
-    // **Send Success Response Only Once**
+    // **Send Success Response Only Once**sent
     res
       .status(200)
-      .json({ message: "Appointment booked and emails sent successfully!" });
+      .json({ message: "Appointment booked!" });
   } catch (error) {
     console.error("Error sending email:", error);
 
@@ -159,6 +161,7 @@ app.post("/patnerRegister", async (req, res) => {
     }
   }
 });
+
 
 app.post("/contact", async (req, res) => {
   const { name, email, message } = req.body;
