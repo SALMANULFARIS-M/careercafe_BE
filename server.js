@@ -8,6 +8,10 @@ import { pino } from "pino";
 
 dotenv.config();
 
+const app = express();
+const PORT = process.env.PORT || 5000;
+const OWNER_NUMBER = process.env.OWNER_NUMBER + "@s.whatsapp.net";
+
 const corsOptions = {
   origin: [
     "https://careercafe.co",
@@ -18,35 +22,25 @@ const corsOptions = {
   credentials: true,
 };
 
-const app = express();
-const { makeWASocket, useMultiFileAuthState } = baileys;
-
 app.use(cors(corsOptions));
 app.use(express.json());
 
-const PORT = process.env.PORT || 5000;
-const OWNER_NUMBER = process.env.OWNER_NUMBER + "@s.whatsapp.net";
+const { makeWASocket, useMultiFileAuthState } = baileys;
 
-let sock;
+let sock = null;
 let isBotRunning = false;
 let isReconnecting = false;
 
-// ✅ START BOT FUNCTION
-async function startBot() {
-  if (isBotRunning) {
-    console.log("⚠️ Bot is already running! Skipping restart...");
-    return;
-  }
+// ✅ Utility to check if socket is active
+function isSockReady() {
+  return sock && sock.user && sock.ws && sock.ws.readyState === 1;
+}
 
-  isBotRunning = true;
-
+// ✅ Build socket safely
+async function buildSocket() {
   const { state, saveCreds } = await useMultiFileAuthState("baileys_auth");
-  if (sock?.user) {
-    console.log("⚠️ Socket already initialized, skipping startBot.");
-    return;
-  }
 
-  sock = makeWASocket({
+  const newSock = makeWASocket({
     auth: state,
     printQRInTerminal: false,
     syncFullHistory: false,
@@ -54,78 +48,75 @@ async function startBot() {
     logger: pino({ level: "silent" }),
   });
 
-  sock.ev.on("creds.update", saveCreds);
+  newSock.ev.on("creds.update", saveCreds);
 
-  sock.ev.on("connection.update", (update) => {
-    const { qr, connection, lastDisconnect } = update;
+  newSock.ev.on("connection.update", (update) => {
+    const { connection, qr, lastDisconnect } = update;
 
     if (qr) {
       console.log("📌 Scan this QR code to connect:");
       qrcode
         .toString(qr, { type: "terminal", small: true })
         .then((qrCode) => console.log(qrCode))
-        .catch((err) => console.error("Error generating QR code:", err));
-    }
-
-    if (connection === "close") {
-      isBotRunning = false;
-
-      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== 401;
-
-      if (shouldReconnect && !isReconnecting) {
-        isReconnecting = true; // ✅ Prevent double reconnects
-        console.log("❌ Connection closed. Restarting in 5 seconds...");
-        setTimeout(async () => {
-          isReconnecting = false; // ✅ Unlock after retry
-          await startBot();
-        }, 5000);
-      } else {
-        console.log("🔴 Logged out or reconnect in progress.");
-      }
+        .catch((err) => console.error("QR code error:", err));
     }
 
     if (connection === "open") {
       console.log("✅ WhatsApp Connected!");
+      sock = newSock;
+      isBotRunning = true;
+    }
+
+    if (connection === "close") {
+      sock = null;
+      isBotRunning = false;
+
+      const shouldReconnect =
+        lastDisconnect?.error?.output?.statusCode !== 401;
+
+      if (shouldReconnect && !isReconnecting) {
+        isReconnecting = true;
+        console.log("🔄 Connection closed. Reconnecting in 5s...");
+        setTimeout(() => {
+          isReconnecting = false;
+          startBot();
+        }, 5000);
+      } else {
+        console.log("🔴 Logged out. Awaiting QR scan.");
+      }
     }
   });
 
-  sock.ev.on("messages.upsert", async (m) => {
+  newSock.ev.on("messages.upsert", async (m) => {
     try {
       const msg = m.messages[0];
-      if (!msg) return;
+      if (!msg || msg.key.fromMe) return;
       if (msg?.historySyncNotification) return;
       if (msg?.key?.remoteJid?.endsWith("@newsletter")) return;
-
-      if (!msg.key.fromMe) {
-        console.log(
-          "📩 New message received:",
-          msg.message?.conversation || "[non-text]"
-        );
-      }
+      console.log("📩 New incoming message:", msg.message?.conversation || "[non-text]");
     } catch (err) {
-      console.error("❌ Error handling message:", err);
+      console.error("⚠️ Error in message handler:", err);
     }
   });
 }
 
-// ✅ START THE BOT ONCE
+// ✅ Start bot safely
+async function startBot() {
+  if (isBotRunning || isReconnecting) {
+    console.log("⚠️ Bot already running or reconnecting.");
+    return;
+  }
+  await buildSocket();
+}
+
+// ✅ Start bot on boot
 startBot();
 
-// ✅ HEALTH CHECK ROUTE
-app.get("/status", (req, res) => {
-  const isConnected = !!sock?.user;
-  res.json({
-    success: true,
-    connected: isConnected,
-    user: sock?.user || null,
-  });
-});
-
-// ✅ APPOINTMENT ROUTE
+// ✅ Appointment Route
 app.post("/appointment", async (req, res) => {
-  if (!sock || !sock?.user) {
-    console.log("❌ WhatsApp bot is not connected");
-    return res.status(500).json({
+  if (!isSockReady()) {
+    console.log("❌ WhatsApp bot not ready");
+    return res.status(503).json({
       success: false,
       message: "WhatsApp bot is not connected",
     });
@@ -144,10 +135,7 @@ app.post("/appointment", async (req, res) => {
 
   const USER_NUMBER = "91" + formData.phone + "@s.whatsapp.net";
 
-  const userMessageBody = `✅ Appointment Confirmed!
-
-Dear ${formData.name}, your appointment has been successfully booked.
-Thank you for choosing us!`;
+  const userMessageBody = `✅ Appointment Confirmed!\n\nDear ${formData.name}, your appointment has been successfully booked.\nThank you for choosing us!`;
 
   try {
     await sock.sendMessage(OWNER_NUMBER, { text: messageBody });
@@ -158,12 +146,22 @@ Thank you for choosing us!`;
 
     res.json({ success: true, message: "Appointment booked!" });
   } catch (error) {
-    console.error("❌ Error sending WhatsApp message:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "Failed to send WhatsApp message" });
+    console.error("❌ Failed to send WhatsApp message:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error sending WhatsApp message",
+    });
   }
 });
+
+// ✅ Health Check Route
+app.get("/", (req, res) => {
+  res.json({
+    connected: isSockReady(),
+    user: sock?.user || null,
+  });
+});
+
 
 const transporter = createTransport({
   host: process.env.EMAIL_HOST, // e.g., 'smtp.gmail.com'
