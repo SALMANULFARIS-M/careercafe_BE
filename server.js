@@ -4,6 +4,7 @@ import baileys from "@whiskeysockets/baileys";
 import { createTransport } from "nodemailer";
 import dotenv from "dotenv";
 import qrcode from "qrcode"; // Use `qrcode` instead of `qrcode-terminal`
+import { pino } from "pino"; // add this import at the top
 
 dotenv.config();
 
@@ -54,6 +55,9 @@ async function startBot() {
   const sock = makeWASocket({
     auth: state,
     printQRInTerminal: false,
+    syncFullHistory: false,
+    markOnlineOnConnect: false,
+    logger: pino({ level: "silent" }),
   });
 
   sock.ev.on("creds.update", saveCreds);
@@ -63,7 +67,8 @@ async function startBot() {
 
     if (qr) {
       console.log("📌 Scan this QR code to connect:");
-      qrcode.toString(qr, { type: "terminal", small: true })
+      qrcode
+        .toString(qr, { type: "terminal", small: true })
         .then((qrCode) => console.log(qrCode))
         .catch((err) => console.error("Error generating QR code:", err));
     }
@@ -76,7 +81,9 @@ async function startBot() {
       if (isLoggedOut) {
         console.log("🔴 Logged out. Scan QR again.");
       } else {
-        console.log("❌ Connection closed unexpectedly. Restarting in 5 seconds...");
+        console.log(
+          "❌ Connection closed unexpectedly. Restarting in 5 seconds..."
+        );
         setTimeout(startBot, 5000);
       }
     } else if (connection === "open") {
@@ -87,10 +94,10 @@ async function startBot() {
   // Ignore history messages
   sock.ev.on("messages.upsert", async (m) => {
     const message = m.messages[0];
-  
+
     if (message?.historySyncNotification) return; // Ignore history messages
     if (message?.key?.remoteJid?.endsWith("@newsletter")) return; // Ignore newsletters
-  
+
     if (!message.key.fromMe) {
       console.log("📩 New message received:", message);
     }
@@ -99,8 +106,6 @@ async function startBot() {
 
 // Start bot only once
 startBot();
-
-
 
 app.post("/appointment", async (req, res) => {
   if (!sock) {
