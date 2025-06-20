@@ -33,8 +33,13 @@ let isReconnecting = false;
 
 // ✅ Utility to check if socket is active
 function isSockReady() {
-  return sock && sock.user && sock.ws && sock.ws.readyState === 1;
+  return (
+    sock &&
+    sock.user &&
+    typeof sock.sendMessage === "function"
+  );
 }
+
 
 // ✅ Build socket safely
 async function buildSocket() {
@@ -61,18 +66,18 @@ async function buildSocket() {
         .catch((err) => console.error("QR code error:", err));
     }
 
-    if (connection === "open") {
-      console.log("✅ WhatsApp Connected!");
-      sock = newSock;
-      isBotRunning = true;
-    }
+if (connection === "open" && newSock.user) {
+  console.log("✅ WhatsApp Connected as:", newSock.user.id);
+  sock = newSock;
+  isBotRunning = true;
+}
+
 
     if (connection === "close") {
       sock = null;
       isBotRunning = false;
 
-      const shouldReconnect =
-        lastDisconnect?.error?.output?.statusCode !== 401;
+      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== 401;
 
       if (shouldReconnect && !isReconnecting) {
         isReconnecting = true;
@@ -93,7 +98,10 @@ async function buildSocket() {
       if (!msg || msg.key.fromMe) return;
       if (msg?.historySyncNotification) return;
       if (msg?.key?.remoteJid?.endsWith("@newsletter")) return;
-      console.log("📩 New incoming message:", msg.message?.conversation || "[non-text]");
+      console.log(
+        "📩 New incoming message:",
+        msg.message?.conversation || "[non-text]"
+      );
     } catch (err) {
       console.error("⚠️ Error in message handler:", err);
     }
@@ -161,7 +169,6 @@ app.get("/", (req, res) => {
     user: sock?.user || null,
   });
 });
-
 
 const transporter = createTransport({
   host: process.env.EMAIL_HOST, // e.g., 'smtp.gmail.com'
