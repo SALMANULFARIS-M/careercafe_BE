@@ -3,8 +3,8 @@ import cors from "cors";
 import baileys from "@whiskeysockets/baileys";
 import { createTransport } from "nodemailer";
 import dotenv from "dotenv";
-import qrcode from "qrcode"; // Use `qrcode` instead of `qrcode-terminal`
-import { pino } from "pino"; // add this import at the top
+import qrcode from "qrcode";
+import { pino } from "pino";
 
 dotenv.config();
 
@@ -17,42 +17,31 @@ const corsOptions = {
   methods: ["GET", "POST", "PUT", "DELETE"],
   credentials: true,
 };
+
 const app = express();
 const { makeWASocket, useMultiFileAuthState } = baileys;
+
 app.use(cors(corsOptions));
-
-const PORT = process.env.PORT || 5000;
-
 app.use(express.json());
 
-const transporter = createTransport({
-  host: process.env.EMAIL_HOST, // e.g., 'smtp.gmail.com'
-  port: process.env.EMAIL_SECURE === "true" ? 465 : 587,
-  secure:
-    process.env.EMAIL_SECURE === "true" || process.env.EMAIL_SECURE === true,
-  auth: {
-    user: process.env.EMAIL_USER, // Use the correct variable name
-    pass: process.env.EMAIL_PASSWORD, // Use the correct variable name
-  },
-});
+const PORT = process.env.PORT || 5000;
+const OWNER_NUMBER = process.env.OWNER_NUMBER + "@s.whatsapp.net";
 
-// Define the recipient's WhatsApp phone number (should include country code, e.g., +1 for US)
-const OWNER_NUMBER = process.env.OWNER_NUMBER + "@s.whatsapp.net"; // Convert to WhatsApp format
-let sock;
+let sock; // ✅ Global sock instance
+let isBotRunning = false;
 
-let isBotRunning = false; // Track bot status
-
+// ✅ START BOT FUNCTION
 async function startBot() {
   if (isBotRunning) {
     console.log("⚠️ Bot is already running! Skipping restart...");
     return;
   }
 
-  isBotRunning = true; // Mark bot as running
+  isBotRunning = true;
 
   const { state, saveCreds } = await useMultiFileAuthState("baileys_auth");
 
-  const sock = makeWASocket({
+  sock = makeWASocket({
     auth: state,
     printQRInTerminal: false,
     syncFullHistory: false,
@@ -74,81 +63,108 @@ async function startBot() {
     }
 
     if (connection === "close") {
-      isBotRunning = false; // Reset bot status BEFORE restart
+      isBotRunning = false;
 
-      const isLoggedOut = lastDisconnect?.error?.output?.statusCode === 401;
+      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== 401;
 
-      if (isLoggedOut) {
-        console.log("🔴 Logged out. Scan QR again.");
-      } else {
-        console.log(
-          "❌ Connection closed unexpectedly. Restarting in 5 seconds..."
-        );
+      if (shouldReconnect) {
+        console.log("❌ Connection closed. Restarting in 5 seconds...");
         setTimeout(startBot, 5000);
+      } else {
+        console.log("🔴 Logged out. Please scan the QR code again.");
       }
     } else if (connection === "open") {
       console.log("✅ WhatsApp Connected!");
     }
   });
 
-  // Ignore history messages
   sock.ev.on("messages.upsert", async (m) => {
-    const message = m.messages[0];
+    try {
+      const msg = m.messages[0];
+      if (!msg) return;
+      if (msg?.historySyncNotification) return;
+      if (msg?.key?.remoteJid?.endsWith("@newsletter")) return;
 
-    if (message?.historySyncNotification) return; // Ignore history messages
-    if (message?.key?.remoteJid?.endsWith("@newsletter")) return; // Ignore newsletters
-
-    if (!message.key.fromMe) {
-      console.log("📩 New message received:", message);
+      if (!msg.key.fromMe) {
+        console.log(
+          "📩 New message received:",
+          msg.message?.conversation || "[non-text]"
+        );
+      }
+    } catch (err) {
+      console.error("❌ Error handling message:", err);
     }
   });
 }
 
-// Start bot only once
+// ✅ START THE BOT ONCE
 startBot();
 
+// ✅ HEALTH CHECK ROUTE
+app.get("/status", (req, res) => {
+  const isConnected = !!sock?.user;
+  res.json({
+    success: true,
+    connected: isConnected,
+    user: sock?.user || null,
+  });
+});
+
+// ✅ APPOINTMENT ROUTE
 app.post("/appointment", async (req, res) => {
-  if (!sock) {
-    console.log("WhatsApp bot is not connected");
-    return res
-      .status(500)
-      .json({ success: false, message: "WhatsApp bot is not connected" });
+  if (!sock || !sock?.user) {
+    console.log("❌ WhatsApp bot is not connected");
+    return res.status(500).json({
+      success: false,
+      message: "WhatsApp bot is not connected",
+    });
   }
 
   const formData = req.body;
 
   const messageBody = `📅 *New Appointment Request*:
-  🔹 *Name:* ${formData.name}
-  📞 *Phone:* ${formData.phone}
-  📧 *Email:* ${formData.email}
-  🏢 *Category:* ${formData.category}
-  📍 *Place:* ${formData.place}
-  📅 *Date:* ${formData.date}
-  ⏰ *Time:* ${formData.time}`;
+🔹 *Name:* ${formData.name}
+📞 *Phone:* ${formData.phone}
+📧 *Email:* ${formData.email}
+🏢 *Category:* ${formData.category}
+📍 *Place:* ${formData.place}
+📅 *Date:* ${formData.date}
+⏰ *Time:* ${formData.time}`;
 
   const USER_NUMBER = "91" + formData.phone + "@s.whatsapp.net";
 
-  const userMessageBody = `✅ Appointment Confirmed!\n
-    Dear ${formData.name}, your appointment has been successfully booked.\n
-    Thank you for choosing us!`;
-  // Check if owner is the same as the user
+  const userMessageBody = `✅ Appointment Confirmed!
+
+Dear ${formData.name}, your appointment has been successfully booked.
+Thank you for choosing us!`;
+
   try {
-    // Send message to owner
     await sock.sendMessage(OWNER_NUMBER, { text: messageBody });
+
     if (USER_NUMBER !== OWNER_NUMBER) {
       await sock.sendMessage(USER_NUMBER, { text: userMessageBody });
     }
 
-    res.json({
-      success: true,
-      message: "Appointment booked!",
-    });
+    res.json({ success: true, message: "Appointment booked!" });
   } catch (error) {
     console.error("❌ Error sending WhatsApp message:", error);
     res
       .status(500)
       .json({ success: false, message: "Failed to send WhatsApp message" });
   }
+});
+
+
+
+const transporter = createTransport({
+  host: process.env.EMAIL_HOST, // e.g., 'smtp.gmail.com'
+  port: process.env.EMAIL_SECURE === "true" ? 465 : 587,
+  secure:
+    process.env.EMAIL_SECURE === "true" || process.env.EMAIL_SECURE === true,
+  auth: {
+    user: process.env.EMAIL_USER, // Use the correct variable name
+    pass: process.env.EMAIL_PASSWORD, // Use the correct variable name
+  },
 });
 
 app.post("/patnerRegister", async (req, res) => {
