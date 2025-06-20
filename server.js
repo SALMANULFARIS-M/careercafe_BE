@@ -27,8 +27,9 @@ app.use(express.json());
 const PORT = process.env.PORT || 5000;
 const OWNER_NUMBER = process.env.OWNER_NUMBER + "@s.whatsapp.net";
 
-let sock; // ✅ Global sock instance
+let sock;
 let isBotRunning = false;
+let isReconnecting = false;
 
 // ✅ START BOT FUNCTION
 async function startBot() {
@@ -40,6 +41,10 @@ async function startBot() {
   isBotRunning = true;
 
   const { state, saveCreds } = await useMultiFileAuthState("baileys_auth");
+  if (sock?.user) {
+    console.log("⚠️ Socket already initialized, skipping startBot.");
+    return;
+  }
 
   sock = makeWASocket({
     auth: state,
@@ -67,13 +72,19 @@ async function startBot() {
 
       const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== 401;
 
-      if (shouldReconnect) {
+      if (shouldReconnect && !isReconnecting) {
+        isReconnecting = true; // ✅ Prevent double reconnects
         console.log("❌ Connection closed. Restarting in 5 seconds...");
-        setTimeout(startBot, 5000);
+        setTimeout(async () => {
+          isReconnecting = false; // ✅ Unlock after retry
+          await startBot();
+        }, 5000);
       } else {
-        console.log("🔴 Logged out. Please scan the QR code again.");
+        console.log("🔴 Logged out or reconnect in progress.");
       }
-    } else if (connection === "open") {
+    }
+
+    if (connection === "open") {
       console.log("✅ WhatsApp Connected!");
     }
   });
@@ -153,8 +164,6 @@ Thank you for choosing us!`;
       .json({ success: false, message: "Failed to send WhatsApp message" });
   }
 });
-
-
 
 const transporter = createTransport({
   host: process.env.EMAIL_HOST, // e.g., 'smtp.gmail.com'
