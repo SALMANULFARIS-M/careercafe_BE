@@ -33,13 +33,8 @@ let isReconnecting = false;
 
 // ✅ Utility to check if socket is active
 function isSockReady() {
-  return (
-    sock &&
-    sock.user &&
-    typeof sock.sendMessage === "function"
-  );
+  return sock && sock.user && typeof sock.sendMessage === "function";
 }
-
 
 // ✅ Build socket safely
 async function buildSocket() {
@@ -66,12 +61,11 @@ async function buildSocket() {
         .catch((err) => console.error("QR code error:", err));
     }
 
-if (connection === "open" && newSock.user) {
-  console.log("✅ WhatsApp Connected as:", newSock.user.id);
-  sock = newSock;
-  isBotRunning = true;
-}
-
+    if (connection === "open" && newSock.user) {
+      console.log("✅ WhatsApp Connected as:", newSock.user.id);
+      sock = newSock;
+      isBotRunning = true;
+    }
 
     if (connection === "close") {
       sock = null;
@@ -171,13 +165,13 @@ app.get("/", (req, res) => {
 });
 
 const transporter = createTransport({
-  host: process.env.EMAIL_HOST, // e.g., 'smtp.gmail.com'
+  host: process.env.EMAIL_HOST,
   port: process.env.EMAIL_SECURE === "true" ? 465 : 587,
   secure:
     process.env.EMAIL_SECURE === "true" || process.env.EMAIL_SECURE === true,
   auth: {
-    user: process.env.EMAIL_USER, // Use the correct variable name
-    pass: process.env.EMAIL_PASSWORD, // Use the correct variable name
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASSWORD,
   },
 });
 
@@ -188,30 +182,47 @@ app.post("/patnerRegister", async (req, res) => {
     await transporter.sendMail({
       from: process.env.COMPANY_EMAIL,
       to: email,
-      subject: "Appointment Confirmation",
+      subject: "Your Appointment with Career Cafe is Confirmed!",
       html: `
-        <h1>CAREER CAFE</h1>
-        <h3>Hello ${name},</h3>
-        <p>Thank you for your interest. We have received your details:</p>
-        <p>We will get back to you soon!</p>
-      `,
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee;">
+      <div style="text-align: center; padding: 20px;">
+          <img src="https://www.careercafe.co/careercafe_logo-transparent.png" alt="Career Cafe" style="height: 60px; background-color: #000; padding: 10px; border-radius: 8px;" />
+      </div>
+
+      <h2 style="color: #4CAF50;">Hello ${name},</h2>
+      <p style="font-size: 16px;">Thank you for your interest in <strong>Career Cafe</strong>! 🎉</p>
+      <p style="font-size: 15px;">We’ve successfully received your appointment request. Our team will review your details and get back to you shortly.</p>
+      <p style="font-size: 15px;">If you have any questions, feel free to contact us at <a href="mailto:info@careercafe.co">info@careercafe.co</a>.</p>
+      <br/>
+      <p style="font-size: 14px; color: #888;">Warm regards,</p>
+      <p style="font-size: 14px;"><strong>Career Cafe Team</strong></p>
+    </div>
+  `,
     });
 
     // **Email to the Company (Notification Email)**
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
-      to: "info@careercafe.co", // Your company email
-      subject: "New Appointment Received ",
+      to: "info@careercafe.co",
+      subject: "📥 New Appointment Request - Partnership",
       html: `
-        <h3>New Appointment Request For Partnership</h3>
-        <ul>
-          <li><strong>Name:</strong> ${name}</li>
-          <li><strong>Email:</strong> ${email}</li>
-          <li><strong>Mobile:</strong> ${mobile}</li>
-          <li><strong>State:</strong> ${state}</li>
-          <li><strong>City:</strong> ${city}</li>
-        </ul>
-      `,
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee;">
+      <div style="text-align: center; padding: 20px;">
+          <img src="https://www.careercafe.co/careercafe_logo-transparent.png" alt="Career Cafe" style="height: 60px; background-color: #000; padding: 10px; border-radius: 8px;" />
+      </div>
+
+      <h2 style="color: #f44336;">📢 New Appointment Request</h2>
+      <p style="font-size: 15px;">A new partnership request has been submitted. Details are as follows:</p>
+      <ul style="font-size: 15px; line-height: 1.6;">
+        <li><strong>Name:</strong> ${name}</li>
+        <li><strong>Email:</strong> ${email}</li>
+        <li><strong>Mobile:</strong> ${mobile}</li>
+        <li><strong>State:</strong> ${state}</li>
+        <li><strong>City:</strong> ${city}</li>
+      </ul>
+      <p style="font-size: 14px;">Please follow up as soon as possible.</p>
+    </div>
+  `,
     });
 
     // **Send Success Response Only Once**sent
