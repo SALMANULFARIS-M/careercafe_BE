@@ -204,14 +204,14 @@ app.post("/patnerRegister", async (req, res) => {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: "info@careercafe.co",
-      subject: "📥 New Appointment Request - Partnership",
+      subject: "📥 New Appointment Request -Partnership",
       html: `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee;">
       <div style="text-align: center; padding: 20px;">
           <img src="https://www.careercafe.co/careercafe_logo-transparent.png" alt="Career Cafe" style="height: 60px; background-color: #000; padding: 10px; border-radius: 8px;" />
       </div>
 
-      <h2 style="color: #f44336;">📢 New Appointment Request</h2>
+      <h2 style="color: #f44336;">📢 New Appointment Request for franchisify</h2>
       <p style="font-size: 15px;">A new partnership request has been submitted. Details are as follows:</p>
       <ul style="font-size: 15px; line-height: 1.6;">
         <li><strong>Name:</strong> ${name}</li>
