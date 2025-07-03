@@ -211,7 +211,7 @@ app.post("/patnerRegister", async (req, res) => {
           <img src="https://www.careercafe.co/careercafe_logo-transparent.png" alt="Career Cafe" style="height: 60px; background-color: #000; padding: 10px; border-radius: 8px;" />
       </div>
 
-      <h2 style="color: #f44336;">📢 New Appointment Request for franchisify</h2>
+      <h2 style="color: #f44336;">📢 New Appointment Request for franchise</h2>
       <p style="font-size: 15px;">A new partnership request has been submitted. Details are as follows:</p>
       <ul style="font-size: 15px; line-height: 1.6;">
         <li><strong>Name:</strong> ${name}</li>
